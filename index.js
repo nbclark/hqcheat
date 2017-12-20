@@ -35,7 +35,7 @@ const processImage = path => {
   PNGCrop.crop(path, path + '.2', config1, function (err) {
     if (err) throw err;
     exec(`tesseract "${path}.2" "${path}.2.log"`, (err, stdout, stderr) => {
-      //fs.unlink(`${path}.2`, () => { });
+      fs.unlink(`${path}.2`, () => { });
       if (err) {
         // node couldn't execute the command
         console.log(`err: ${err}`);
@@ -43,19 +43,19 @@ const processImage = path => {
       }
 
       const contents = fs.readFileSync(`${path}.2.log.txt`, 'utf8');
-      console.log(contents);
-      //fs.unlink(`${path}.2.log.txt`, () => { });
+      fs.unlink(`${path}.2.log.txt`, () => { });
 
       const lines = contents.split('\n').filter(x => x);
-      const title = lines.slice(0, lines.length - 4).join(' ');
+      const title = lines.slice(0, lines.length - 3).join(' ');
       const shouldInvert = title.toLowerCase().indexOf(' not ') >= 0;
-      const options = lines.slice(lines.length - 4, lines.length - 1);
+      const options = lines.slice(lines.length - 3, lines.length);
+      const searchTitle = shouldInvert ? title.replace(/ not /i, ' ') : title;
 
       console.log(`${colors.gray('Got question:')} ${title}`);
       console.log(`${colors.gray('Got options:')}  ${options.join(', ')}`);
 
       const headers = { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/62.0.3202.94 Safari/537.36' };
-      const promises = ['', ...options].map(o => fetch(`https://www.google.com/search?q=${encodeURIComponent(title)}+${encodeURIComponent('"' + o + '"')}`, { headers }));
+      const promises = ['', ...options].map(o => fetch(`https://www.google.com/search?q=${encodeURIComponent(searchTitle)}+${encodeURIComponent('"' + o + '"')}`, { headers }));
       Promise.all(promises.map(p => p.then(res => res.text()))).then((results) => {
         const $ = cheerio.load(results[0]);
         const genericSearch = results[0].toLowerCase();
@@ -64,7 +64,7 @@ const processImage = path => {
         for (let i = 0; i < optionsWithCounts.length; ++i) {
           const result = results[i + 1];
           const $$ = cheerio.load(result);
-          optionsWithCounts[i].scopedCount = parseInt($$('#resultStats').text().toLowerCase().replace('about ', '').replace(' results', '').replace(',', ''), 10);
+          optionsWithCounts[i].scopedCount = parseInt($$('#resultStats').text().toLowerCase().replace('about ', '').replace(' results', '').replace(/,/g, ''), 10);
         }
 
         const sortedOptions = optionsWithCounts
